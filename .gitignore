@@ -1,2 +1,18 @@
-docs/info.md
-docs/ft_linear_regression.pdf
+# Python artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Trained parameters
+thetas.json
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
