@@ -1,3 +1,15 @@
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    utils.py                                           :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: ravazque <ravazque@student.42madrid.com    +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/08/17 17:42:13 by ravazque          #+#    #+#              #
+#    Updated: 2026/08/21 12:08:37 by ravazque         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 """Helpers shared by train and predict.
 
 Plain Python only: the linear hypothesis, dataset/theta I/O and the small

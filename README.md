@@ -320,7 +320,7 @@ solution to twelve decimal places.
 ## ⚙️ Technical Specifications
 
 - **Language**: Python 3, standard library only
-- **Dependencies**: none
+- **Dependencies**: `python3` 3.8 or later — nothing to install
 - **Model**: `price = θ0 + θ1 · km`, two parameters stored as JSON in
   `information/thetas.json`
 - **Training**: batch gradient descent, learning rate `0.1`, `1000`
@@ -334,10 +334,6 @@ solution to twelve decimal places.
 - **Measured**: a full training run, cost logging included, takes about 40 ms
 - **Interface**: `predict` prompts on standard input; both programs exit with
   status 1 and a `program: message` line on standard error on any failure
-
-## 🔧 Requirements
-
-- `python3` 3.8 or later — nothing to install
 
 ---
 

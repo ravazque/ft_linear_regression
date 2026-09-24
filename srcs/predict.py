@@ -1,3 +1,15 @@
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    predict.py                                         :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: ravazque <ravazque@student.42madrid.com    +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/08/18 11:07:28 by ravazque          #+#    #+#              #
+#    Updated: 2026/08/19 16:45:09 by ravazque         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 """Prompt for a mileage and print the price estimated by the trained model."""
 
 import math

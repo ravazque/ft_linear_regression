@@ -1,3 +1,15 @@
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    train.py                                           :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: ravazque <ravazque@student.42madrid.com    +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2026/08/17 18:31:05 by ravazque          #+#    #+#              #
+#    Updated: 2026/08/20 23:14:52 by ravazque         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 """Train the linear model with gradient descent and save θ0/θ1 for predict.py.
 
 Raw mileage goes up to 240 000 km, which makes the gradient descent update
