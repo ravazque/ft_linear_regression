@@ -1,14 +1,30 @@
-*This project has been created as part of the 42 curriculum by ravazque.*
-
----
+# ft_linear_regression
 
 ## Description
 
-ft_linear_regression is an introduction to machine learning: a **single-variable linear regression** trained with **gradient descent**, implemented from scratch, that predicts the price of a car from its mileage.
+ft_linear_regression is an introduction to machine learning: a **single-variable linear regression** trained with **gradient descent**, written from scratch in plain Python, that predicts the price of a car from its mileage.
 
-The project consists of two programs:
+The project is two programs:
 
-- **train** reads the dataset (`data.csv`) and fits the hypothesis `estimatePrice(km) = θ0 + θ1 · km` by iteratively updating both parameters with simultaneous gradient descent steps, then stores the resulting thetas.
-- **predict** asks for a mileage and returns the estimated price using the trained parameters (before any training, both thetas are zero and the prediction is 0).
+- **train** reads the dataset (`information/data.csv`), fits the hypothesis `estimatePrice(km) = θ0 + θ1 · km` by repeatedly applying the gradient descent update rule with a simultaneous update of both parameters, and stores the result in `information/thetas.json`.
+- **predict** prompts for a mileage and prints the estimated price. Until the model is trained both thetas are 0, so it answers 0.
 
-No library is allowed to perform the regression itself — the cost function, the derivatives and the update loop are written by hand. Feature scaling is applied to the mileage so the descent converges, and the bonus part plots the data with the fitted line and measures the precision of the model.
+No library performs the regression: the hypothesis, the update loop and the cost are hand-written and use only the Python standard library. Because raw mileage reaches 240 000 km, `train` standardizes it (`(km − mean) / std`) before the descent and converts the thetas back afterwards, so `predict` applies the hypothesis directly on raw kilometres. If the cost rises during a run the learning rate is too high and `train` stops without saving.
+
+## Instructions
+
+Requires Python 3, nothing else to install.
+
+```sh
+python3 srcs/train.py                 # fit the model and write information/thetas.json
+python3 srcs/predict.py               # prompts "Mileage (km): " and prints the estimate
+```
+
+`train.py` accepts `--learning-rate` (default `0.1`), `--iterations` (default `1000`) and `--data path.csv` to use another `km,price` dataset. Both programs locate `information/` relative to their own file and work from any directory.
+
+Expected result on the provided dataset: `θ0 = 8499.599650`, `θ1 = −0.021449`.
+
+## Resources
+
+- Andrew Ng, *Machine Learning* (Coursera) — linear regression with one variable, gradient descent, feature scaling.
+- [Gradient descent](https://en.wikipedia.org/wiki/Gradient_descent) and [Feature scaling](https://en.wikipedia.org/wiki/Feature_scaling) on Wikipedia.
