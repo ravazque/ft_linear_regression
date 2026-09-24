@@ -6,15 +6,11 @@
 #    By: ravazque <ravazque@student.42madrid.com    +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2026/08/17 17:42:13 by ravazque          #+#    #+#              #
-#    Updated: 2026/08/21 12:08:37 by ravazque         ###   ########.fr        #
+#    Updated: 2026/09/23 21:37:14 by ravazque         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
-"""Helpers shared by train and predict.
-
-Plain Python only: the linear hypothesis, dataset/theta I/O and the small
-statistics needed to standardize the mileage before gradient descent.
-"""
+"""Hypothesis, file loading/saving and small stats shared by train and predict."""
 
 import csv
 import json
@@ -27,12 +23,10 @@ THETAS_PATH = ROOT / "information" / "thetas.json"
 
 
 def estimate_price(mileage, theta0, theta1):
-    """Linear hypothesis: estimatePrice(mileage) = θ0 + θ1 · mileage."""
-    return theta0 + theta1 * mileage
+    return theta0 + (theta1 * mileage)
 
 
 def load_dataset(path=DATA_PATH):
-    """Read a `km,price` CSV and return both columns as lists of floats."""
     mileages, prices = [], []
     with open(path, newline="") as file:
         reader = csv.DictReader(file)
@@ -40,20 +34,23 @@ def load_dataset(path=DATA_PATH):
             raise ValueError(f"{path}: expected header 'km,price'")
         for row in reader:
             try:
-                mileages.append(float(row["km"]))
-                prices.append(float(row["price"]))
+                km, price = float(row["km"]), float(row["price"])
             except (TypeError, ValueError):
-                raise ValueError(f"{path}: line {reader.line_num}: expected two numbers") from None
+                km = price = math.nan
+            if None in row or not (math.isfinite(km) and math.isfinite(price)):
+                raise ValueError(f"{path}: line {reader.line_num}: expected two numbers")
+            mileages.append(km)
+            prices.append(price)
     if len(mileages) < 2:
         raise ValueError(f"{path}: need at least two rows to fit a line")
     return mileages, prices
 
 
 def load_thetas(path=THETAS_PATH):
-    """Return (θ0, θ1). A missing file means the model is untrained: both are 0."""
+    """No file means the model is not trained yet: (0, 0, None)."""
     path = Path(path)
     if not path.exists():
-        return 0.0, 0.0
+        return 0.0, 0.0, None
     try:
         with open(path) as file:
             data = json.load(file)
@@ -62,12 +59,18 @@ def load_thetas(path=THETAS_PATH):
         raise ValueError(f'{path}: expected {{"theta0": number, "theta1": number}}') from None
     if not (math.isfinite(theta0) and math.isfinite(theta1)):
         raise ValueError(f"{path}: thetas must be finite numbers")
-    return theta0, theta1
+    try:
+        km_max = None if data.get("km_max") is None else float(data["km_max"])
+    except (TypeError, ValueError):
+        km_max = math.nan
+    if km_max is not None and not (math.isfinite(km_max) and km_max >= 0):
+        raise ValueError(f"{path}: km_max must be a non-negative number")
+    return theta0, theta1, km_max
 
 
-def save_thetas(theta0, theta1, path=THETAS_PATH):
+def save_thetas(theta0, theta1, km_max, path=THETAS_PATH):
     with open(path, "w") as file:
-        json.dump({"theta0": theta0, "theta1": theta1}, file, indent=2)
+        json.dump({"theta0": theta0, "theta1": theta1, "km_max": km_max}, file, indent=2)
         file.write("\n")
 
 

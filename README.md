@@ -12,7 +12,8 @@ hypothesis `estimatePrice(km) = θ0 + θ1 · km`, and its two parameters are
 learned with **gradient descent**: starting from `θ0 = θ1 = 0`, the program
 measures how far the line is from every point of the dataset, moves both
 parameters a small step in the direction that reduces that error, and repeats
-until the error stops shrinking. No library does this for it — the sums, the
+that step a fixed number of times, long after the error has stopped shrinking.
+No library does this for it — the sums, the
 update rule and the cost are written by hand with nothing beyond the Python
 standard library.
 
@@ -30,7 +31,8 @@ before saving them, so `predict` applies the hypothesis exactly as written.
   of both parameters
 - Standardizing the feature so the descent converges, and undoing the scaling
   so the saved parameters work on raw mileage
-- Detecting a diverging run instead of saving garbage parameters
+- Refusing learning rates that cannot converge instead of saving garbage
+  parameters
 - Persisting the model between programs and behaving sensibly before training
 
 ## 📋 Function Overview
@@ -43,17 +45,18 @@ before saving them, so `predict` applies the hypothesis exactly as written.
 | Module | Feature | Description |
 |--------|---------|-------------|
 | **utils** | Hypothesis | `estimate_price` — `θ0 + θ1 · mileage`, the one formula both programs share |
-| **utils** | Dataset | `load_dataset` reads a CSV whose header is exactly `km,price`; a short or non-numeric row is reported with its line number, fewer than two rows is an error |
-| **utils** | Parameters | `load_thetas` / `save_thetas` keep `θ0` and `θ1` in a small JSON file; a missing file means `(0, 0)`, a malformed one is an error |
+| **utils** | Dataset | `load_dataset` reads a CSV whose header is exactly `km,price`; a short, long or non-numeric row (`nan` and `inf` included) is reported with its line number, fewer than two rows is an error |
+| **utils** | Parameters | `load_thetas` / `save_thetas` keep `θ0`, `θ1` and `km_max` (the largest training mileage) in a small JSON file; a missing file means `(0, 0)`, a malformed one is an error |
 | **utils** | Statistics | `mean`, population `std` and `mean_squared_error`, written by hand |
 | **train** | Standardization | Mileage becomes `(km − μ) / σ` before the descent; a dataset where every mileage is the same is refused |
 | **train** | Gradient descent | The update rule: the error of every point is computed once per iteration with the current parameters, then `θ0` and `θ1` are both moved |
-| **train** | Divergence guard | The cost is recomputed after every step; if it goes up the learning rate is too high and the run aborts without touching the saved parameters |
+| **train** | Learning rate bound | Only rates strictly between 0 and 2 are accepted: on standardized mileage that is exactly where the descent converges. A cost that overflows also aborts the run; the saved parameters are never touched on failure |
 | **train** | De-standardization | `θ1 = θ1′ / σ`, `θ0 = θ0′ − θ1 · μ`, so the saved line is expressed in raw kilometres |
-| **train** | Options | `--learning-rate` (0.1), `--iterations` (1000), `--data` for another dataset |
-| **predict** | Prompt | `Mileage (km):` — any non-negative number is accepted, text, negatives, `nan` and `inf` are rejected |
+| **train** | Options | `--learning-rate` (0.1, between 0 and 2), `--iterations` (1000), `--data` for another dataset |
+| **predict** | Prompt | `Mileage (km):` — any finite non-negative number is accepted; text, negatives, `nan`, `inf` and values too large for a float are rejected |
 | **predict** | Untrained model | With `(0, 0)` parameters it says so and answers 0 |
-| **predict** | Out-of-range warning | A negative estimate is printed with a note: the line has no idea a price cannot be below zero |
+| **predict** | Out-of-range warning | Past `km_max` the estimate is flagged as unreliable, or as unrealistic once the line has dropped below zero: there is no training data there |
+| **predict** | Extrapolation | Past `km_max` a second estimate follows the line's price and slope at `km_max` and then decays exponentially, so it never drops below zero; `EXTRAPOLATE = False` at the top of `predict.py` turns it off |
 | **both** | Error path | Every I/O or data error ends as `program: message` on stderr with exit status 1 |
 
 <br>
@@ -87,6 +90,25 @@ line at zero scores 41.8 million, the first step already brings it to 33.9
 million, and it settles after about a hundred iterations: every extra
 kilometre costs 2.1 cents, and a car with no mileage is worth 8 499.60.
 
+### Beyond the dataset
+
+```bash
+$ echo 300000 | python3 srcs/predict.py
+Mileage (km): Estimated price: 2064.91
+(unreliable: no training data past 240000 km, the line is only extrapolated)
+Extrapolated price: 2283.17
+$ echo 400000 | python3 srcs/predict.py
+Mileage (km): Estimated price: -79.99
+(unrealistic: no training data past 240000 km, the line has dropped below 0)
+Extrapolated price: 1204.00
+```
+
+The linear estimate is always printed as the line gives it, negative or not.
+Past the largest mileage of the dataset it is flagged, and a second,
+extrapolated estimate is added; up to that mileage the output is unchanged.
+Setting `EXTRAPOLATE = False` at the top of `predict.py` drops the
+extrapolated line and keeps the warning.
+
 ### Before training
 
 ```bash
@@ -100,15 +122,16 @@ Estimated price: 0.00
 ### The learning rate matters
 
 ```bash
-$ python3 srcs/train.py --learning-rate 2.5
-train: cost went up at iteration 1: the learning rate is too high
+$ python3 srcs/train.py --learning-rate 2
+train: the learning rate must be above 0 and below 2
 $ python3 srcs/train.py --learning-rate 0.001 --iterations 100 | grep theta1
 theta1 = -0.002042            # ten times too small: the run stopped early
 ```
 
-Too large a rate overshoots the minimum and every step makes the fit worse;
-the run is aborted and the previous parameters are kept. Too small a rate
-converges, but not within the iteration budget.
+From 2 on the steps overshoot the minimum by as much as they started away
+from it (exactly 2) or more (above 2), so the error never shrinks; such a rate
+is refused before training and the previous parameters are kept. Too small a
+rate converges, but not within the iteration budget.
 
 ### Error handling
 
@@ -121,7 +144,7 @@ $ python3 srcs/predict.py
 predict: …/information/thetas.json: expected {"theta0": number, "theta1": number}
 $ python3 srcs/predict.py
 Mileage (km): -5
-predict: mileage must be a non-negative number
+predict: mileage must be a finite, non-negative number
 ```
 
 ### Full sweep
@@ -130,7 +153,7 @@ predict: mileage must be a non-negative number
 python3 srcs/train.py | tail -3                                         # θ0 8499.599650, θ1 -0.021449
 echo 120000 | python3 srcs/predict.py                                   # 5925.72
 for lr in 0.01 0.1 1 1.9; do python3 srcs/train.py --learning-rate $lr | tail -3 | head -1; done
-python3 srcs/train.py --learning-rate 2.5 ; echo "exit $?"               # aborts, exit 1
+python3 srcs/train.py --learning-rate 2.5 ; echo "exit $?"               # refused, exit 1
 ```
 
 <br>
@@ -174,8 +197,8 @@ km,price          # header, exactly these two names
 …
 ```
 
-Values are read as floats. A row with a missing or non-numeric field stops the
-program with its line number; the file needs at least two rows, and not all
+Values are read as floats. A row with a missing, extra or non-numeric field
+(`nan` and `inf` included) stops the program with its line number; the file needs at least two rows, and not all
 mileages may be equal.
 
 <br>
@@ -269,6 +292,16 @@ remaining error by a factor of `|1 − learningRate|`. At `0.1` that is `0.9` pe
 step, which is why the cost is flat after a hundred iterations; from `2` on
 the factor is `1` or more and the error never shrinks again.
 
+### Learning rate bound
+
+That factor makes the range of working learning rates exact: `0 < rate < 2`,
+whatever the dataset, because standardization always produces the same
+identity curvature. `train` checks the rate against it before the first step
+instead of watching the cost. A rate of exactly `2` shows why: the parameters
+jump between `(0, 0)` and twice the optimum, the cost is the same at both
+points, and a check for a rising cost would never fire. During the descent
+only an overflowing cost (values too large for a float) stops the run.
+
 ### De-standardization — the saved line
 
 ```
@@ -281,13 +314,20 @@ training is a real squared price error and the two conversions above are the
 whole bridge between the training space and the raw one. `predict` never
 learns that a standardization happened.
 
-### Divergence guard
+### Extrapolation past the data
 
-On a convex cost, a learning rate that is not too large lowers the cost on
-every single step — even when it overshoots and oscillates around the
-minimum. So a step that raises the cost is proof that the rate is too high,
-and `train` stops there rather than running to the end and saving whatever
-the parameters have become.
+```
+p0 = θ0 + θ1 · km_max                                  the line's price where the data ends
+extrapolated(km) = p0 · e^(θ1 · (km − km_max) / p0)    for km > km_max
+```
+
+At `km_max` the curve has the same value and the same slope as the line, so
+it leaves it without a jump or a kink; after that it keeps falling but only
+approaches zero. The line reaches zero at about 396 000 km, the curve is still
+at 1 204 at 400 000 km. The shape of the tail is an assumption, not something
+learned from the data: it only replaces an answer the line cannot give. It is
+skipped when the line does not go down or is already at or below zero at
+`km_max`.
 
 ### Result
 
@@ -296,7 +336,7 @@ the parameters have become.
 ```
 
 Gradient descent lands on the same line as the closed-form least-squares
-solution to twelve decimal places.
+solution, to within `10⁻¹¹`.
 
 <br>
 
@@ -312,8 +352,8 @@ solution to twelve decimal places.
   the algorithm; standardizing the feature decouples the parameters
 - **Reversible preprocessing**: whatever is done to the data before training
   has to be undone on the parameters afterwards
-- **Convergence diagnostics**: a rising cost is a bug in the learning rate, not
-  noise to be ignored
+- **Convergence limits**: on a standardized feature each step scales the
+  error by `|1 − learningRate|`, so the working rates are known in advance
 - **Defensive input handling**: an untrusted CSV, a hand-edited parameter file
   and a free-text prompt all fail with a message, not a traceback
 
@@ -322,18 +362,21 @@ solution to twelve decimal places.
 - **Language**: Python 3, standard library only
 - **Dependencies**: `python3` 3.8 or later — nothing to install
 - **Model**: `price = θ0 + θ1 · km`, two parameters stored as JSON in
-  `information/thetas.json`
+  `information/thetas.json` together with the largest training mileage,
+  used for the extrapolated estimate past the data
 - **Training**: batch gradient descent, learning rate `0.1`, `1000`
-  iterations by default, cost checked after every step
+  iterations by default, learning rate restricted to `(0, 2)`
 - **Preprocessing**: mileage standardized with the population mean and
   standard deviation; parameters converted back before saving
 - **Dataset**: 24 cars, mileage from 22 899 to 240 000 km, price from 3 650
   to 8 290
 - **Result**: `θ0 = 8499.599650`, `θ1 = −0.021449`, final cost (MSE)
   `445645.25`
-- **Measured**: a full training run, cost logging included, takes about 40 ms
+- **Measured**: a full training run, cost logging included, takes about 50 ms
 - **Interface**: `predict` prompts on standard input; both programs exit with
-  status 1 and a `program: message` line on standard error on any failure
+  status 1 and a `program: message` line on standard error on any failure,
+  except malformed command-line options, which get `argparse`'s usage
+  message and status 2
 
 ---
 
